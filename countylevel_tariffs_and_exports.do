@@ -1,13 +1,16 @@
+
+*the main directory path
+global parent_path "C:\Users\johan\OneDrive\桌面\研究所學習\RA\Pandas-to-STATA"
+cd "$parent_path"
 **********
 * STEP 1 *
 **********
 * Read in .csv file from Pandas
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports"
-import delimited "step1_initial.csv", stringcols(2 4 9) numericcols(3) clear
-save "step1_initial.dta", replace
+import delimited "$parent_path\countylevel_tariffs_and_exports\step1_initial.csv", stringcols(2 4 9) numericcols(3) clear
+save "$parent_path\countylevel_tariffs_and_exports\step1_initial.dta", replace
 
 * Then we can start adressing our data
-use "step1_initial.dta", clear
+use "$parent_path\countylevel_tariffs_and_exports\step1_initial.dta", clear
 keep if agglvl_code == 75
 keep if own_code == 5
 
@@ -20,18 +23,20 @@ drop area_fips_head // this temporary variable can be dropped
 
 collapse (sum) annual_avg_emplvl, by (industry_code) // sum annual_avg_emplvl in the same industry_code
 rename annual_avg_emplvl nat_emplvl
-save "step1.dta", replace
+count
+save "$parent_path\countylevel_tariffs_and_exports\step1.dta", replace
 
 * Check: We check if there's any difference in nat_emplvl.
 * import the output created by pandas
-import delimited "step1_pandas.csv", stringcols(2) clear
+import delimited "$parent_path\countylevel_tariffs_and_exports\step1_pandas.csv", stringcols(2,4) clear
 drop v1 // drop index created by Pandas
-save "step1_pandas.dta", replace
+count
+save "$parent_path\data_check\step1_pandas.dta", replace
 
 * merge our data and the data produced by pandas
-use "step1.dta", clear
+use "$parent_path\countylevel_tariffs_and_exports\step1.dta", clear
 clonevar nat_emplvl_test = nat_emplvl // make this variable's name different from data from pandas, otherwise there will be problems when merging
-merge 1:1 industry_code using "step1_pandas.dta"
+merge 1:1 industry_code using "$parent_path\data_check\step1_pandas.dta"
 
 * assertion
 assert nat_emplvl_test == nat_emplvl // correct!
@@ -42,29 +47,29 @@ assert nat_emplvl_test == nat_emplvl // correct!
 * STEP 2 *
 **********
 * import the china trade csv
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports"
-import delimited "step2_china.csv", stringcols(2) clear
-save "step2_china.dta", replace
+cd "$parent_path"
+import delimited "$parent_path\countylevel_tariffs_and_exports\step2_china.csv", stringcols(2) clear
+save "$parent_path\countylevel_tariffs_and_exports\step2_china.dta", replace
 
 * import the world trade csv
-import delimited "step2_world.csv", stringcols(2) clear
-save "step2_world.dta", replace
+import delimited "$parent_path\countylevel_tariffs_and_exports\step2_world.csv", stringcols(2) clear
+save "$parent_path\countylevel_tariffs_and_exports\step2_world.dta", replace
 
 * merge the two with key e_commodity and time
-use "step2_china.dta", clear
-merge 1:1 e_commodity time using "step2_world.dta"
+use "$parent_path\countylevel_tariffs_and_exports\step2_china.dta", clear
+merge 1:1 e_commodity time using "$parent_path\countylevel_tariffs_and_exports\step2_world.dta"
 keep e_commodity comm_lvl total_trade china_trade time
-save "step2.dta", replace
+save "$parent_path\countylevel_tariffs_and_exports\step2.dta", replace
 
 * Check: We check whether observations with the same e_commodity code and time have the same china_trade and total_trade.
-import delimited "step2_pandas.csv", stringcols(2) clear
-save "step2_pandas.dta", replace
+import delimited "$parent_path\data_check\step2_pandas.csv", stringcols(2) clear
+save "$parent_path\data_check\step2_pandas.dta", replace
 
 * merge our data and the data produced by pandas
-use "step2.dta", clear
+use "$parent_path\countylevel_tariffs_and_exports\step2.dta", clear
 clonevar china_trade_test = china_trade
 clonevar total_trade_test = total_trade
-merge 1:1 e_commodity time using "step2_pandas.dta"
+merge 1:1 e_commodity time using "$parent_path\data_check\step2_pandas.dta"
 
 * assertions
 assert china_trade_test == china_trade
@@ -74,8 +79,8 @@ assert total_trade_test == total_trade // both are correct!
 * STEP 3 *
 **********
 clear all
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports"
-use "step2.dta" , clear
+cd "$parent_path"
+use "$parent_path\countylevel_tariffs_and_exports\step2.dta" , clear
 gen time_stata = date(time,"YMD")
 format time_stata %td
 drop time
@@ -84,18 +89,18 @@ collapse (sum) china_trade, by (e_commodity) // obs: 5320, correct!
 rename e_commodity hs6
 rename china_trade china_trade_2017
 tostring hs6, replace // make it string in order to merge
-save "2017_china_trade.dta", replace
+save "$parent_path\countylevel_tariffs_and_exports\2017_china_trade.dta", replace
 
-merge 1:1 hs6 using "/Users/changjay/Desktop/Pandas-to-STATA Project/alt_hs_naics_mapping/merged_trade_modified.dta", keep(1 3) // obs: 5320, correct!
+merge 1:1 hs6 using "$parent_path/alt_hs_naics_mapping/merged_trade_modified.dta", keep(1 3) // obs: 5320, correct!
 keep china_trade_2017 hs6 naics
 gen naics_4 = substr(naics, 1, 4)
 gen naics_3 = substr(naics, 1, 3)
 collapse (sum) china_trade_2017, by (naics_3) // obs: 31, correct!
-save "step3_china.dta", replace
+save "$parent_path\countylevel_tariffs_and_exports\step3_china.dta", replace
 
-use "step1.dta", clear
+use "$parent_path\countylevel_tariffs_and_exports\step1.dta", clear
 rename industry_code naics_3
-merge 1:1 naics_3 using "step3_china.dta", keep(1 3)
+merge 1:1 naics_3 using "$parent_path\countylevel_tariffs_and_exports\step3_china.dta", keep(1 3)
 
 egen total_china_trade_2017 = total(china_trade_2017)
 gen trd_wts = china_trade_2017 / total_china_trade_2017 
@@ -103,21 +108,21 @@ total(trd_wts) // = 1, correct!
 replace china_trade_2017 = 0 if china_trade_2017 == .
 replace trd_wts = 0 if trd_wts == .
 keep naics_3 nat_emplvl china_trade_2017 trd_wts
-save "step3.dta", replace
+save "$parent_path\countylevel_tariffs_and_exports\step3.dta", replace
 
 * Check: We check whether the same naics_3 leads to the same nat_emplvl, china_trade_2017, and trd_wts (the weights)
-import delimited "step3_pandas.csv", stringcols(2) clear
+import delimited "$parent_path\data_check\step3_pandas.csv", stringcols(2) clear
 rename industry_code naics_3
 drop v1 // drop the index created by pandas
 gen trd_wts_round = round(trd_wts, .0000001) // create this for assertion
-save "step3_pandas.dta", replace
+save "$parent_path\data_check\step3_pandas.dta", replace
 
 * Now we prepare our own data to merge
-use "step3.dta", clear
+use "$parent_path\countylevel_tariffs_and_exports\step3.dta", clear
 rename nat_emplvl nat_emplvl_test
 gen trd_wts_test = round(trd_wts, .0000001) // create this for assertion
 
-merge 1:1 naics_3 using "step3_pandas.dta" // merge the two
+merge 1:1 naics_3 using "$parent_path\data_check\step3_pandas.dta" // merge the two
 
 * assertions
 assert nat_emplvl_test == nat_emplvl
@@ -129,14 +134,14 @@ assert trd_wts_test == trd_wts_round // all correct!
 **********
 * Following "dict" codes are doing what "dictionary" does in Pandas.
 * create the initial tariff dict
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data"
+cd "C:\Users\johan\OneDrive\桌面\研究所學習\RA\Pandas-to-STATA"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20180101"
 keep hs6 cum_tariff
 save "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports/initial_tariff_dict.dta",replace
 
 * create the 232 tariff dict
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data"
+cd "C:\Users\johan\OneDrive\桌面\研究所學習\RA\Pandas-to-STATA"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20180402"
 keep hs6 cum_tariff

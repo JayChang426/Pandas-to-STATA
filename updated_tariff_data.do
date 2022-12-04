@@ -1,10 +1,10 @@
 clear all
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data"
+global parent_path "C:\Users\johan\OneDrive\桌面\研究所學習\RA\Pandas-to-STATA"
 
 ****************
     *Step 1*
 ****************
-import excel "bown-jung-zhang-2019-06-12.xlsx",firstrow sheet(China Tariff Rates) // choosing shhet
+import excel "$parent_path\bown-jung-zhang-2019-06-12.xlsx",firstrow sheet(China Tariff Rates) // choosing shhet
 gen hs8 = substr(hs10, 1, 8) // this is for further grouping
 gen hs6 = substr(hs10, 1, 6) // this is for further grouping
 * the author said that for most trade data in this project, hs6 is the most suitable one to use as a index to merge with other data
@@ -39,7 +39,8 @@ replace cum_tariff =  . if value == . // putting the missing data back
 collapse (max) cum_tariff, by(hs6 time_of_tariff) // finding finding maxima in the same hs6 and time_of_tariff, Obs: 59,257, correct!
 sort hs6 (time_of_tariff)
 drop if time_of_tariff == "20190101" // Obs: 53,870, correct!
-save "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data/updated_tariff_data_finished.dta", replace
+
+save "$parent_path\updated_tariff_data\updated_tariff_data_finished.dta", replace
 * export delimited time_of_tariff hs6 cum_tariff updated_tariff_data_finished.csv
 * since we will use this data in later section, so it is not necessary to convert it to .csv as the author did. Also, exporting time-series are not allowed in.csv format, so I choose not to do this.
 
@@ -47,11 +48,10 @@ save "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data/update
 *Test whether data I created are consistent to what the author created*
 *********************************************************************** 
 * merge for test
-clear all
-use "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data/updated_tariff_data_finished.dta"
+use "$parent_path\updated_tariff_data\updated_tariff_data_finished.dta"
 gen index = _n - 1 // setting a distinct variable to merge
 rename hs6 hs6_mine // reaname to keep naics that we created, otherwise it will be overwritten by the test data
-merge 1:1 index using "/Users/changjay/Desktop/Pandas-to-STATA Project/data_check/updated_tariff_data_test.dta", force
+merge 1:1 index using "$parent_path\data_check\updated_tariff_data_test.dta", force
 
 * create testing variables and test them
 gen tariff_test = round(tariff, 0.00001)
