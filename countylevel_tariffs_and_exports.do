@@ -134,67 +134,67 @@ assert trd_wts_test == trd_wts_round // all correct!
 **********
 * Following "dict" codes are doing what "dictionary" does in Pandas.
 * create the initial tariff dict
-cd "C:\Users\johan\OneDrive\桌面\研究所學習\RA\Pandas-to-STATA"
+cd "$parent_path\updated_tariff_data"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20180101"
 keep hs6 cum_tariff
-save "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports/initial_tariff_dict.dta",replace
+save "$parent_path\countylevel_tariffs_and_exports/initial_tariff_dict.dta",replace
 
 * create the 232 tariff dict
-cd "C:\Users\johan\OneDrive\桌面\研究所學習\RA\Pandas-to-STATA"
+cd "$parent_path\updated_tariff_data"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20180402"
 keep hs6 cum_tariff
 rename cum_tariff cum_tariff_232 // rename this, we'll conditionally update the original cum_tariff using this
-save "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports/tariff_232_dict.dta",replace
+save "$parent_path\countylevel_tariffs_and_exports/tariff_232_dict.dta",replace
 
 * create the r1 tariff dict
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data"
+cd "$parent_path\updated_tariff_data"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20180706"
 keep hs6 cum_tariff
 rename cum_tariff cum_tariff_r1 // rename this, we'll conditionally update the original cum_tariff using this
-save "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports/tariff_r1_dict.dta",replace
+save "$parent_path\countylevel_tariffs_and_exports/tariff_r1_dict.dta",replace
 
 * create the r2 tariff dict
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data"
+cd "$parent_path\updated_tariff_data"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20180823"
 keep hs6 cum_tariff
 rename cum_tariff cum_tariff_r2 // rename this, we'll conditionally update the original cum_tariff using this
-save "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports/tariff_r2_dict.dta",replace
+save "$parent_path\countylevel_tariffs_and_exports/tariff_r2_dict.dta",replace
 
 * create the r3 tariff dict
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data"
+cd "$parent_path\updated_tariff_data"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20180924"
 keep hs6 cum_tariff
 rename cum_tariff cum_tariff_r3 // rename this, we'll conditionally update the original cum_tariff using this
-save "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports/tariff_r3_dict.dta",replace
+save "$parent_path\countylevel_tariffs_and_exports/tariff_r3_dict.dta",replace
 
 * create the mfn tariff dict
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data"
+cd "$parent_path\updated_tariff_data"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20181101"
 keep hs6 cum_tariff
 rename cum_tariff cum_tariff_mfn // rename this, we'll conditionally update the original cum_tariff using this
-save "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports/tariff_mfn_dict.dta",replace
+save "$parent_path\countylevel_tariffs_and_exports/tariff_mfn_dict.dta",replace
 
 * create the mfn 2019 tariff dict
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/updated_tariff_data"
+cd "$parent_path\updated_tariff_data"
 use "updated_tariff_data_finished.dta",clear
 keep if time_of_tariff == "20190102"
 keep hs6 cum_tariff
 rename cum_tariff cum_tariff_mfn_2019 // rename this, we'll conditionally update the original cum_tariff using this
-save "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports/tariff_mfn_2019_dict.dta",replace
+save "$parent_path\countylevel_tariffs_and_exports/tariff_mfn_2019_dict.dta",replace
 * "dict" creating ended
 
 * We first merge the output in step2 with mapping data from alt_hs_naics_mapping, which will map hs6 to naics code.
 clear all
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports"
+cd "$parent_path\countylevel_tariffs_and_exports"
 use "step2.dta", clear
 clonevar hs6 = e_commodity // create key for merging
-merge m:1 hs6 using "/Users/changjay/Desktop/Pandas-to-STATA Project/alt_hs_naics_mapping/merged_trade_modified.dta", keep(1 3)
+merge m:1 hs6 using "$parent_path/alt_hs_naics_mapping/merged_trade_modified.dta", keep(1 3)
 drop _merge
 sort e_commodity (time)
 gen naics_3 = substr(naics, 1, 3)
@@ -203,6 +203,7 @@ gen time_stata = date(time,"YMD")
 format time_stata %td // use this to "update" tariff after assigned dates
 
 * Then we can "update" the tariff data gradually
+cd "$parent_path\countylevel_tariffs_and_exports"
 merge m:1 hs6 using "initial_tariff_dict.dta", keep(1 3) nogen
 merge m:1 hs6 using "tariff_232_dict.dta", keep(1 3) nogen
 replace cum_tariff = cum_tariff_232 if time_stata >= td(1,4,2018)
@@ -241,25 +242,31 @@ save "step4.dta", replace
 
 * Check: We check whether tariff_trd_w_avg, total_trade, and china_trade are the same in our data and Pandas data.
 * first we need to prepare data from Pandas
-cd "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports"
-import delimited "step4_pandas.csv", clear
+
+import delimited "$parent_path\data_check\step4_pandas.csv", clear
 rename naics3 naics_3
 tostring naics_3, replace // for merge, key's data type must be the same
 gen tariff_trd_w_avg_round = round(tariff_trd_w_avg, .0001) // otherwise there will be some slight difference, assertions will fail
-save "step4_pandas.dta", replace
+save "$parent_path\data_check\step4_pandas.dta", replace
 
 * then we prepare for test in our own data
+cd "$parent_path\countylevel_tariffs_and_exports"
 use "step4.dta", clear
 gen tariff_trd_w_avg_test = round(tariff_trd_w_avg, .0001) // otherwise there will be some slight difference, assertions will fail
 rename total_trade total_trade_test 
 rename china_trade china_trade_test // to make these variables' name different from data from pandas, otherwise there will be problems when merging
 
-merge 1:1 naics_3 time using "step4_pandas.dta" // merge with data produced by pandas, naics_3 and time uniquely define observations
+merge 1:1 naics_3 time using "$parent_path\data_check\step4_pandas.dta" // merge with data produced by pandas, naics_3 and time uniquely define observations
 
 * assertions
 assert tariff_trd_w_avg_test == tariff_trd_w_avg_round
 assert total_trade_test == total_trade
 assert china_trade_test == china_trade // all correct!
+
+**********
+* STEP 5 *
+**********
+
 
 
 
