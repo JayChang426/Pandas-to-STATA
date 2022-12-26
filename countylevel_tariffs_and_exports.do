@@ -3,7 +3,8 @@
 **********
 * Read in .csv file from Pandas
 cd "/Users/changjay/Desktop/Pandas-to-STATA Project/countylevel_tariffs_and_exports"
-import delimited "step1_initial.csv", stringcols(2 4 9) numericcols(3) clear
+import delimited "countylevel_tariffs_and_exports_initial.csv", stringcols(2 4 9) numericcols(3) clear 
+// this .csv needs to be downloaded by python code since it's too big to push to github
 save "step1_initial.dta", replace
 
 * Then we can start adressing our data
@@ -17,6 +18,7 @@ gen area_fips_head = substr(area_fips, 1, 2) // create this to drop some useless
 drop if area_fips_head == "72" | area_fips_head == "78" | area_fips_head == "02" | area_fips_head == "15" // keep observations with area_fips_head other than "72", "78", "02", or "15". obs: 199,393, correct!
 drop area_fips_head // this temporary variable can be dropped
 ***********************************************************************************
+save "df_county.dta", replace // this one is for step 5 use
 
 collapse (sum) annual_avg_emplvl, by (industry_code) // sum annual_avg_emplvl in the same industry_code
 rename annual_avg_emplvl nat_emplvl
@@ -103,11 +105,11 @@ total(trd_wts) // = 1, correct!
 replace china_trade_2017 = 0 if china_trade_2017 == .
 replace trd_wts = 0 if trd_wts == .
 keep naics_3 nat_emplvl china_trade_2017 trd_wts
+rename naics_3 industry_code
 save "step3.dta", replace
 
 * Check: We check whether the same naics_3 leads to the same nat_emplvl, china_trade_2017, and trd_wts (the weights)
 import delimited "step3_pandas.csv", stringcols(2) clear
-rename industry_code naics_3
 drop v1 // drop the index created by pandas
 gen trd_wts_round = round(trd_wts, .0000001) // create this for assertion
 save "step3_pandas.dta", replace
@@ -117,7 +119,7 @@ use "step3.dta", clear
 rename nat_emplvl nat_emplvl_test
 gen trd_wts_test = round(trd_wts, .0000001) // create this for assertion
 
-merge 1:1 naics_3 using "step3_pandas.dta" // merge the two
+merge 1:1 industry_code using "step3_pandas.dta" // merge the two
 
 * assertions
 assert nat_emplvl_test == nat_emplvl
@@ -256,6 +258,86 @@ assert tariff_trd_w_avg_test == tariff_trd_w_avg_round
 assert total_trade_test == total_trade
 assert china_trade_test == china_trade // all correct!
 
+**********
+* STEP 5 *
+**********
+use "df_county.dta", clear // from step1
+merge m:1 industry_code using "step3.dta", nogen // merge with national data, all matched (_merge == 3)
+gen emp_wts = annual_avg_emplvl / nat_emplvl
+egen total_employment = total(annual_avg_emplvl), by(area_fips)
+sort area_fips (industry_code)
+save "weights.dta", replace
+
+use "step4.dta", clear
+rename naics_3 industry_code
+joinby industry_code using "weights.dta", unmatched(both) // joinby is the real merge m:m
+sort area_fips (industry_code time)
+
+egen county_annual_emplvl = total(annual_avg_emplvl), by(area_fips time) // this is the denominator, which is sum of annual avergae employment of a county in "a sector at a specific time" 
+
+* these 3 rows are for china export
+gen china_trade_pcs = china_trade * emp_wts
+egen china_trade_pcs_sum = total(china_trade_pcs), by (area_fips time)
+gen china_exp_pc = (1 / county_annual_emplvl) * china_trade_pcs_sum
+
+* these 3 rows are for total export
+gen total_trade_pcs = total_trade * emp_wts
+egen total_trade_pcs_sum = total(total_trade_pcs), by (area_fips time)
+gen total_exp_pc = (1 / county_annual_emplvl) * total_trade_pcs_sum
+
+* these 2 rows are for tariffs
+gen tariff_pcs = annual_avg_emplvl * tariff_trd_w_avg / county_annual_emplvl
+egen tariff = total(tariff_pcs), by(area_fips time)
+
+rename county_annual_emplvl emplvl_2017
+gsort - tariff - emplvl_2017
+duplicates drop area_fips time, force
+keep time total_exp_pc china_exp_pc tariff emplvl_2017 area_fips total_employment
+save "trade_county.dta", replace
+
+* One more adjustment for total_employment
+use "trade_county.dta", clear
+gen new_tariff = (emplvl_2017 / total_employment) * tariff
+gen new_china_exp_pc = (emplvl_2017 / total_employment) * china_exp_pc
+gen new_total_exp_pc = (emplvl_2017 / total_employment) * total_exp_pc
+gsort - new_tariff - emplvl_2017
+save "trade_county.dta", replace
+
+* Check: We check whether emplvl_2017, new_tariff, new_china_ecp_pc, new_total_ecp_pc, and total_employment are the same in our data and Pandas data.
+* prepare pandas data
+import delimited "trade_county_pandas.csv", clear
+tostring area_fips, replace
+gsort - tariff - emplvl_2017
+drop if china_exp_pc == . & total_exp_pc == .
+rename total_exp_pc total_exp_pc_pandas
+rename china_exp_pc china_exp_pc_pandas
+rename tariff tariff_pandas
+rename emplvl_2017 emplvl_2017_pandas
+rename total_employment total_employment_pandas
+gen tariff_pandas_test = round(tariff_pandas, .1)
+gen china_exp_pc_pandas_test = round(china_exp_pc_pandas)
+gen total_exp_pc_pandas_test = round(total_exp_pc_pandas)
+save "trade_county_pandas.dta", replace
+
+* prepare our data
+use "trade_county.dta", clear
+drop if china_exp_pc == . & total_exp_pc == . // 
+gen new_tariff_test = round(new_tariff, .1)
+gen new_china_exp_pc_test = round(new_china_exp_pc)
+gen new_total_exp_pc_test = round(new_total_exp_pc)
+
+* assertions
+merge 1:1 time area_fips using "trade_county_pandas.dta", keep(3)
+assert emplvl_2017 == emplvl_2017_pandas // all correct
+assert new_tariff_test == tariff_pandas_test // all correct
+* assert new_china_exp_pc_test == china_exp_pc_pandas_test
+// 2 contradictions in 272,600 observations
+list if new_china_exp_pc_test != china_exp_pc_pandas_test // difference is very small, run this command you'll know why. (.49999 vs. .5)
+* assert new_total_exp_pc_test == total_exp_pc_pandas_test
+// 16 contradictions in 272,600 observations
+gen test = new_total_exp_pc_test - total_exp_pc_pandas_test if new_total_exp_pc_test != total_exp_pc_pandas_test
+list if new_total_exp_pc_test != total_exp_pc_pandas_test // difference is very small, run this command you'll know why. (.49999 vs. .5)
+assert total_employment == total_employment_pandas // all correct
 
 
 
